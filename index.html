@@ -57,6 +57,14 @@ tbody tr:hover{background:#f8f9fa}
 .pager button:disabled{opacity:.4;cursor:default}
 .ftr{text-align:center;font-size:12px;color:var(--sub);padding:10px 0 4px}
 @media(max-width:900px){.charts,.charts2{grid-template-columns:1fr}}
+.kpi .mom{font-size:11.5px;margin-top:6px;display:flex;align-items:center;gap:4px}
+.kpi .mom.mom-up{color:var(--neg)}
+.kpi .mom.mom-down{color:var(--pos)}
+.kpi .mom.mom-flat{color:var(--sub)}
+.bc .mom-line{font-size:12px;margin-top:6px;padding-top:6px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between}
+.bc .mom-line .mom-up{color:var(--neg);font-weight:600}
+.bc .mom-line .mom-down{color:var(--pos);font-weight:600}
+.bc .mom-line .mom-flat{color:var(--sub);font-weight:600}
 @media print{.filters{display:none}.cc,.kpi,.bc{box-shadow:none;border:1px solid #dee2e6}}
 </style>
 </head>
@@ -70,9 +78,9 @@ tbody tr:hover{background:#f8f9fa}
 </div>
 </header>
 <section class="kpis">
-<div class="kpi"><div class="lb">ใบรับคืนสินค้า (SR)</div><div class="vl" id="kSr">–</div><div class="nt" id="kSrN"></div></div>
-<div class="kpi"><div class="lb">จำนวนสินค้าที่รับคืน</div><div class="vl" id="kQty">–</div><div class="nt">แผ่น / ท่อน / ต้น / บ่อ</div></div>
-<div class="kpi"><div class="lb">คืนแบบชำรุด</div><div class="vl warn" id="kDmg">–</div><div class="nt" id="kDmgN"></div></div>
+<div class="kpi"><div class="lb">ใบรับคืนสินค้า (SR)</div><div class="vl" id="kSr">–</div><div class="nt" id="kSrN"></div><div class="mom" id="kSrMoM"></div></div>
+<div class="kpi"><div class="lb">จำนวนสินค้าที่รับคืน</div><div class="vl" id="kQty">–</div><div class="nt">แผ่น / ท่อน / ต้น / บ่อ</div><div class="mom" id="kQtyMoM"></div></div>
+<div class="kpi"><div class="lb">คืนแบบชำรุด</div><div class="vl warn" id="kDmg">–</div><div class="nt" id="kDmgN"></div><div class="mom" id="kDmgMoM"></div></div>
 <div class="kpi"><div class="lb">สาเหตุอันดับ 1</div><div class="vl" id="kTop" style="font-size:19px">–</div><div class="nt" id="kTopN"></div></div>
 </section>
 <section class="charts">
@@ -156,6 +164,70 @@ const app = {
     const tied = top ? ents.filter(e => e[1] === top[1]).map(e => e[0]) : [];
     document.getElementById('kTop').textContent = top ? tied.join(' = ') : '–';
     document.getElementById('kTopN').textContent = top ? (tied.length > 1 ? 'เสมอกัน ' : '') + top[1] + ' รายการ (' + Math.round(top[1] / d.length * 100) + '% ของทั้งหมด)' : '';
+    this.renderMoM();
+  },
+
+  monthStats(rows) {
+    const qty = rows.reduce((s, r) => s + r.qty, 0);
+    const known = rows.filter(r => r.cond !== 'ไม่ระบุ');
+    const dmg = known.filter(r => r.cond === 'ชำรุด');
+    return {
+      sr: this.srCount(rows), qty: qty,
+      dmgPct: known.length ? (dmg.length / known.length * 100) : null
+    };
+  },
+
+  momBadge(cur, prev, opts) {
+    opts = opts || {};
+    const unit = opts.unit || '';
+    const decimals = opts.decimals || 0;
+    if (prev === null || cur === null) return '<span class="mom-flat">– ไม่มีข้อมูลเทียบ</span>';
+    if (prev === 0) {
+      if (cur === 0) return '<span class="mom-flat">▬ ไม่เปลี่ยนแปลง MoM</span>';
+      return '<span class="mom-up">▲ เพิ่มขึ้นจาก 0 MoM</span>';
+    }
+    const diff = cur - prev;
+    const pct = diff / prev * 100;
+    const cls = diff > 0 ? 'mom-up' : diff < 0 ? 'mom-down' : 'mom-flat';
+    const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '▬';
+    const pctTxt = Math.abs(pct).toFixed(decimals === 0 ? 1 : decimals);
+    return '<span class="' + cls + '">' + arrow + ' ' + pctTxt + '% MoM</span>';
+  },
+
+  momPctPointBadge(cur, prev) {
+    if (cur === null || prev === null) return '<span class="mom-flat">– ไม่มีข้อมูลเทียบ</span>';
+    const diff = cur - prev;
+    const cls = diff > 0 ? 'mom-up' : diff < 0 ? 'mom-down' : 'mom-flat';
+    const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '▬';
+    return '<span class="' + cls + '">' + arrow + ' ' + Math.abs(diff).toFixed(1) + ' จุด MoM</span>';
+  },
+
+  renderMoM() {
+    const b = document.getElementById('fBranch').value;
+    const m = document.getElementById('fMonth').value;
+    const scoped = this.data.filter(r => b === 'all' || r.branch === b);
+    const availMonths = [...new Set(scoped.map(r => r.month))];
+    let curMonth;
+    if (m === 'all') {
+      curMonth = availMonths.length ? Math.max(...availMonths) : null;
+    } else {
+      curMonth = +m;
+    }
+    const prevMonth = curMonth ? curMonth - 1 : null;
+    const label = curMonth ? ('(' + MONTHS[curMonth - 1] + ' เทียบ ' + (prevMonth >= 1 ? MONTHS[prevMonth - 1] : '-') + ')') : '';
+    if (!curMonth || !prevMonth || prevMonth < 1 || !availMonths.includes(prevMonth)) {
+      const msg = '<span class="mom-flat">' + (curMonth ? 'ไม่มีข้อมูลเดือนก่อนหน้า (' + MONTHS[curMonth - 1] + ') ให้เทียบ' : '– ไม่มีข้อมูล') + '</span>';
+      document.getElementById('kSrMoM').innerHTML = msg;
+      document.getElementById('kQtyMoM').innerHTML = msg;
+      document.getElementById('kDmgMoM').innerHTML = msg;
+      return;
+    }
+    const curRows = scoped.filter(r => r.month === curMonth);
+    const prevRows = scoped.filter(r => r.month === prevMonth);
+    const curS = this.monthStats(curRows), prevS = this.monthStats(prevRows);
+    document.getElementById('kSrMoM').innerHTML = this.momBadge(curS.sr, prevS.sr) + ' <span class="mom-flat" style="font-weight:400">' + label + '</span>';
+    document.getElementById('kQtyMoM').innerHTML = this.momBadge(curS.qty, prevS.qty);
+    document.getElementById('kDmgMoM').innerHTML = this.momPctPointBadge(curS.dmgPct, prevS.dmgPct);
   },
 
   buildCharts() {
@@ -274,6 +346,9 @@ const app = {
     const base = this.data.filter(r => m === 'all' || r.month === +m);
     const el = document.getElementById('bCards');
     const branches = fb === 'all' ? BRANCHES : [fb];
+    const availAll = [...new Set(this.data.map(r => r.month))];
+    let curMonth = m === 'all' ? (availAll.length ? Math.max(...availAll) : null) : +m;
+    const prevMonth = curMonth ? curMonth - 1 : null;
     el.innerHTML = branches.map(b => {
       const d = base.filter(r => r.branch === b);
       const qty = Math.round(d.reduce((s, r) => s + r.qty, 0));
@@ -282,11 +357,23 @@ const app = {
       const top = Object.entries(cc).sort((a, b) => b[1] - a[1])[0];
       const dmg = d.filter(r => r.cond === 'ชำรุด').length;
       const known = d.filter(r => r.cond !== 'ไม่ระบุ').length;
+      const branchMonths = new Set(this.data.filter(r => r.branch === b).map(r => r.month));
+      let momLine = '<span class="mom-flat">– ไม่มีข้อมูลเทียบ</span>';
+      if (curMonth && prevMonth && prevMonth >= 1 && branchMonths.has(prevMonth)) {
+        const curD = this.data.filter(r => r.branch === b && r.month === curMonth);
+        const prevD = this.data.filter(r => r.branch === b && r.month === prevMonth);
+        const curQty = curD.reduce((s, r) => s + r.qty, 0);
+        const prevQty = prevD.reduce((s, r) => s + r.qty, 0);
+        momLine = this.momBadge(curQty, prevQty);
+      } else if (curMonth && !branchMonths.has(curMonth)) {
+        momLine = '<span class="mom-flat">ไม่มีข้อมูลเดือนนี้</span>';
+      }
       return '<div class="bc" style="border-top-color:' + BCOLORS[b] + '"><h4>โรงงาน' + b + '</h4>' +
         '<div class="row"><span>ใบรับคืน (SR)</span><span>' + nf.format(this.srCount(d)) + '</span></div>' +
         '<div class="row"><span>จำนวนชิ้น</span><span>' + nf.format(qty) + '</span></div>' +
         '<div class="row"><span>สัดส่วนชำรุด</span><span>' + (known ? Math.round(dmg / known * 100) + '%' : '–') + '</span></div>' +
-        '<div class="row"><span>สาเหตุหลัก</span><span>' + (top ? top[0] : '–') + '</span></div></div>';
+        '<div class="row"><span>สาเหตุหลัก</span><span>' + (top ? top[0] : '–') + '</span></div>' +
+        '<div class="mom-line"><span>จำนวนชิ้น MoM</span>' + momLine + '</div></div>';
     }).join('');
   },
 
