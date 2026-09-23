@@ -87,7 +87,7 @@ tbody tr:hover{background:#f8f9fa}
 <section class="charts">
 <div class="cc"><h3>แนวโน้มการรับคืนรายเดือน (จำนวนใบ SR)</h3><div class="note">แยกตามสาขา</div><div class="cv"><canvas id="chTrend"></canvas></div></div>
 <div class="cc"><h3>สาเหตุการรับคืน
-<span class="toggle"><button id="tQty" class="on" onclick="app.setCauseMode('qty')">จำนวนชิ้น</button><button id="tCnt" onclick="app.setCauseMode('cnt')">จำนวนครั้ง</button></span></h3>
+<span class="toggle"><button id="tQty" class="on" onclick="app.setCauseMode('qty')">จำนวนชิ้น</button><button id="tCnt" onclick="app.setCauseMode('cnt')">จำนวนเที่ยว</button></span></h3>
 <div class="note" id="causeNote">มุมมองจำนวนชิ้น — สะท้อนขนาดความเสียหาย/ภาระขนกลับ</div><div class="cv"><canvas id="chCause"></canvas></div></div>
 </section>
 <section class="charts2">
@@ -96,7 +96,7 @@ tbody tr:hover{background:#f8f9fa}
 </section>
 <section style="margin-bottom:var(--gap)">
 <div class="cc"><h3>ของดี vs ของเสีย แยกตามประเภทสินค้า
-<span class="toggle"><button id="tpQty" class="on" onclick="app.setPtMode('qty')">จำนวนชิ้น</button><button id="tpCnt" onclick="app.setPtMode('cnt')">จำนวนรายการ</button></span></h3>
+<span class="toggle"><button id="tpQty" class="on" onclick="app.setPtMode('qty')">จำนวนชิ้น</button><button id="tpCnt" onclick="app.setPtMode('cnt')">จำนวนเที่ยว</button></span></h3>
 <div class="note" id="ptNote">สินค้าดี = คืนจากปัญหากระบวนการสั่ง-ส่ง · ชำรุด = ปัญหาคุณภาพ/ขนส่ง</div>
 <div class="cv"><canvas id="chPtCond"></canvas></div></div>
 </section>
@@ -151,20 +151,20 @@ const app = {
     const d = this.fd;
     const qty = d.reduce((s, r) => s + r.qty, 0);
     document.getElementById('kSr').textContent = nf.format(this.srCount(d));
-    document.getElementById('kSrN').textContent = 'จากรายการสินค้า ' + nf.format(d.length) + ' รายการ';
+    document.getElementById('kSrN').textContent = 'จากการขนคืน ' + nf.format(d.length) + ' เที่ยว';
     document.getElementById('kQty').textContent = nf.format(Math.round(qty));
     const known = d.filter(r => r.cond !== 'ไม่ระบุ');
     const dmg = known.filter(r => r.cond === 'ชำรุด');
     const pct = known.length ? Math.round(dmg.length / known.length * 100) : 0;
     document.getElementById('kDmg').textContent = pct + '%';
-    document.getElementById('kDmgN').textContent = dmg.length + ' จาก ' + known.length + ' รายการที่ระบุสภาพ';
+    document.getElementById('kDmgN').textContent = dmg.length + ' จาก ' + known.length + ' เที่ยวที่ระบุสภาพ';
     const cc = {};
     d.forEach(r => { if (r.cat !== 'ไม่ระบุ') cc[r.cat] = (cc[r.cat] || 0) + 1; });
     const ents = Object.entries(cc).sort((a, b) => b[1] - a[1]);
     const top = ents[0];
     const tied = top ? ents.filter(e => e[1] === top[1]).map(e => e[0]) : [];
     document.getElementById('kTop').textContent = top ? tied.join(' = ') : '–';
-    document.getElementById('kTopN').textContent = top ? (tied.length > 1 ? 'เสมอกัน ' : '') + top[1] + ' รายการ (' + Math.round(top[1] / d.length * 100) + '% ของทั้งหมด)' : '';
+    document.getElementById('kTopN').textContent = top ? (tied.length > 1 ? 'เสมอกัน ' : '') + top[1] + ' เที่ยว (' + Math.round(top[1] / d.length * 100) + '% ของทั้งหมด)' : '';
     this.renderMoM();
   },
 
@@ -243,7 +243,7 @@ const app = {
       type: 'bar',
       data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 3 }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, indexAxis: 'y',
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => nf.format(c.parsed.x) + (app.causeMode === 'qty' ? ' ชิ้น' : ' รายการ') } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => nf.format(c.parsed.x) + (app.causeMode === 'qty' ? ' ชิ้น' : ' เที่ยว') } } },
         scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
     });
     this.charts.prod = new Chart(document.getElementById('chProd'), {
@@ -270,7 +270,7 @@ const app = {
         { label: 'ชำรุด', data: [], backgroundColor: '#C44E52CC', borderRadius: 3 }] },
       options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
         plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 14, font: { size: 12 } } },
-          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + nf.format(c.parsed.x) + (app.ptMode === 'qty' ? ' ชิ้น' : ' รายการ') } } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + nf.format(c.parsed.x) + (app.ptMode === 'qty' ? ' ชิ้น' : ' เที่ยว') } } },
         scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
     });
   },
@@ -337,7 +337,7 @@ const app = {
     document.getElementById('tCnt').className = m === 'cnt' ? 'on' : '';
     document.getElementById('causeNote').textContent = m === 'qty'
       ? 'มุมมองจำนวนชิ้น — สะท้อนขนาดความเสียหาย/ภาระขนกลับ'
-      : 'มุมมองจำนวนครั้ง — สะท้อนความถี่ของปัญหาที่เกิดซ้ำ';
+      : 'มุมมองจำนวนเที่ยว — นับเที่ยวรถขนส่งที่นำสินค้ากลับมาคืน (1 รายการ = 1 เที่ยว)';
     this.updateCharts();
   },
 
